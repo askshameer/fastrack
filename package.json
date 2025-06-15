@@ -8,11 +8,11 @@
     "dev": "vite --port 3000 --host",
     "build": "vite build",
     "preview": "vite preview"
-  },
-  "dependencies": {
+  },  "dependencies": {
+    "file-saver": "^2.0.5",
+    "lucide-react": "^0.284.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "lucide-react": "^0.284.0",
     "tailwindcss": "^3.3.3"
   },
   "devDependencies": {

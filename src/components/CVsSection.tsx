@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Upload, Download, Trash2, Search, Filter, ChevronDown } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Upload, Download, Trash2, Search, Filter, ChevronDown, FileText } from 'lucide-react';
 import { CV, User } from '../types';
+import { FileUtils, CVParser } from '../utils/textProcessing';
 
 interface CVsSectionProps {
   cvs: CV[];
@@ -8,8 +9,7 @@ interface CVsSectionProps {
   currentUser: User;
 }
 
-const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => {  const [searchTerm, setSearchTerm] = useState('');
   const [filterSkill, setFilterSkill] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -18,6 +18,11 @@ const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => 
     skills: '',
     experience: ''
   });
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [fileError, setFileError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewCV, setPreviewCV] = useState<CV | null>(null);
 
   // Get all unique skills from all CVs for filter dropdown
   const allSkills = Array.from(new Set(cvs.flatMap(cv => cv.skills))).sort();
@@ -29,29 +34,61 @@ const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => 
     );
     return matchesSearch && matchesSkill;
   });
-
-  const handleUploadCV = (e: React.FormEvent) => {
+  const handleUploadCV = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create new CV object
-    const newCVObject: CV = {
-      id: cvs.length + 1,
-      userId: currentUser.id,
-      fileName: newCV.fileName || `CV_${new Date().toISOString()}.pdf`,
-      skills: newCV.skills.split(',').map(s => s.trim()),
-      experience: newCV.experience,
-      uploadedAt: new Date(),
-      availability: true
-    };
+    if (!cvFile) {
+      setFileError('Please select a CV file to upload');
+      return;
+    }
     
-    // Add to CVs list
-    setCvs([...cvs, newCVObject]);
+    setIsProcessing(true);
     
-    // Reset form and close modal
-    setNewCV({ fileName: '', skills: '', experience: '' });
-    setUploadModalOpen(false);
+    try {
+      // Extract text content from file
+      const fileText = await FileUtils.readFileAsText(cvFile);
+      
+      // Extract skills and experience from CV text
+      const extractedSkills = CVParser.extractSkills(fileText);
+      const extractedExperience = CVParser.extractExperience(fileText);
+      
+      // Use extracted data or form input data
+      const finalSkills = newCV.skills ? 
+        newCV.skills.split(',').map(s => s.trim()) : 
+        extractedSkills;
+        
+      const finalExperience = newCV.experience || extractedExperience;
+      
+      // Create new CV object
+      const newCVObject: CV = {
+        id: cvs.length + 1,
+        userId: currentUser.id,
+        fileName: cvFile.name,
+        skills: finalSkills,
+        experience: finalExperience,
+        uploadedAt: new Date(),
+        availability: true
+      };
+      
+      // Save file data to CV object as a data URL for preview
+      const dataUrl = await FileUtils.readFileAsDataURL(cvFile);
+      (newCVObject as any).fileData = dataUrl;
+      
+      // Add to CVs list
+      setCvs([...cvs, newCVObject]);
+      
+      // Reset form and close modal
+      setNewCV({ fileName: '', skills: '', experience: '' });
+      setCvFile(null);
+      setFileError('');
+      setUploadModalOpen(false);
+    } catch (error) {
+      console.error('Error processing CV file:', error);
+      setFileError('Error processing file. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
-
   const handleDeleteCV = (cvId: number) => {
     if (window.confirm('Are you sure you want to delete this CV?')) {
       setCvs(cvs.filter(cv => cv.id !== cvId));
@@ -59,8 +96,47 @@ const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => 
   };
 
   const handleDownloadCV = (cv: CV) => {
-    // In a real application, this would initiate a file download
-    alert(`Downloading CV: ${cv.fileName}`);
+    // Check if we have the file data stored in the CV object
+    if ((cv as any).fileData) {
+      // Create an anchor element and trigger download from data URL
+      const link = document.createElement('a');
+      link.href = (cv as any).fileData;
+      link.download = cv.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // In case we don't have the actual file data
+      alert(`In a production environment, this would download ${cv.fileName}`);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Only accept PDF, DOC, DOCX, and TXT files
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+      
+      if (!validTypes.includes(file.type)) {
+        setFileError('Invalid file type. Please upload a PDF, DOC, DOCX, or TXT file.');
+        setCvFile(null);
+        return;
+      }
+      
+      // Reset error if previously set
+      setFileError('');
+      
+      // Update file state
+      setCvFile(file);
+      
+      // Auto-fill filename if not already entered
+      if (!newCV.fileName) {
+        setNewCV(prev => ({ ...prev, fileName: file.name }));
+      }
+    }
   };
 
   return (
@@ -146,8 +222,16 @@ const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => 
                   </div>
                 </div>
               </div>
-              
-              <div className="flex justify-between mt-5 pt-4 border-t border-gray-700">
+                <div className="flex justify-between mt-5 pt-4 border-t border-gray-700">
+                {(cv as any).fileData && (
+                  <button
+                    onClick={() => setPreviewCV(cv)}
+                    className="p-2 text-green-400 hover:text-green-300 transition-colors"
+                    title="Preview CV"
+                  >
+                    <FileText size={18} />
+                  </button>
+                )}
                 <button
                   onClick={() => handleDownloadCV(cv)}
                   className="p-2 text-blue-400 hover:text-blue-300 transition-colors"
@@ -170,62 +254,120 @@ const CVsSection: React.FC<CVsSectionProps> = ({ cvs, setCvs, currentUser }) => 
         <div className="bg-gray-800/50 backdrop-blur-sm p-8 rounded-xl border border-gray-700 text-center">
           <p className="text-gray-400">No CVs found matching your search criteria.</p>
         </div>
-      )}
-
-      {/* Upload CV Modal */}
+      )}      {/* Upload CV Modal */}
       {uploadModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-xl font-semibold text-white mb-4">Upload New CV</h3>
             <form onSubmit={handleUploadCV}>
               <div className="mb-4">
-                <label className="block text-gray-400 mb-2">File Name</label>
-                <input
-                  type="text"
-                  value={newCV.fileName}
-                  onChange={(e) => setNewCV({...newCV, fileName: e.target.value})}
-                  placeholder="resume.pdf"
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+                <label className="block text-gray-400 mb-2">Upload CV File</label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".pdf,.doc,.docx,.txt"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all flex items-center space-x-2"
+                  >
+                    <FileText size={16} />
+                    <span>Select File</span>
+                  </button>
+                  <span className="text-white text-sm truncate flex-1">
+                    {cvFile ? cvFile.name : 'No file selected'}
+                  </span>
+                </div>
+                {fileError && <p className="text-red-400 text-sm mt-1">{fileError}</p>}
               </div>
+              
               <div className="mb-4">
                 <label className="block text-gray-400 mb-2">Skills (comma separated)</label>
                 <input
                   type="text"
                   value={newCV.skills}
                   onChange={(e) => setNewCV({...newCV, skills: e.target.value})}
-                  placeholder="React, TypeScript, Node.js"
+                  placeholder="React, TypeScript, Node.js (or leave empty to extract from CV)"
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  required
                 />
+                <p className="text-gray-500 text-xs mt-1">Leave empty to auto-detect skills from CV</p>
               </div>
+              
               <div className="mb-6">
                 <label className="block text-gray-400 mb-2">Experience</label>
                 <input
                   type="text"
                   value={newCV.experience}
                   onChange={(e) => setNewCV({...newCV, experience: e.target.value})}
-                  placeholder="5 years"
+                  placeholder="5 years (or leave empty to extract from CV)"
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  required
                 />
+                <p className="text-gray-500 text-xs mt-1">Leave empty to auto-detect experience from CV</p>
               </div>
+              
               <div className="flex space-x-4">
                 <button
                   type="button"
-                  onClick={() => setUploadModalOpen(false)}
+                  onClick={() => {
+                    setUploadModalOpen(false);
+                    setCvFile(null);
+                    setFileError('');
+                    setNewCV({ fileName: '', skills: '', experience: '' });
+                  }}
                   className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
+                  disabled={isProcessing}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center"
+                  disabled={isProcessing}
                 >
-                  Upload
+                  {isProcessing ? 'Processing...' : 'Upload'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CV Preview Modal */}
+      {previewCV && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl shadow-xl max-w-5xl w-full p-6 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-white">{previewCV.fileName}</h3>
+              <button
+                onClick={() => setPreviewCV(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto bg-white rounded-lg">
+              {(previewCV as any).fileData && (
+                <iframe 
+                  src={(previewCV as any).fileData} 
+                  className="w-full h-full min-h-[60vh]" 
+                  title={previewCV.fileName}
+                />
+              )}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setPreviewCV(null)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
