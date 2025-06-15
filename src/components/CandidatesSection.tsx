@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, Search, Timer, User as UserIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Search, Timer, User as UserIcon, ToggleLeft, ToggleRight } from 'lucide-react';
 import { User, CV, Test, Job } from '../types';
 
 interface CandidatesSectionProps {
@@ -8,6 +8,10 @@ interface CandidatesSectionProps {
   tests: Test[];
   jobs: Job[];
   setTests: React.Dispatch<React.SetStateAction<Test[]>>;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  setCvs: React.Dispatch<React.SetStateAction<CV[]>>;
+  currentUser?: User;
+  setCurrentUser?: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
 const CandidatesSection: React.FC<CandidatesSectionProps> = ({ 
@@ -15,7 +19,11 @@ const CandidatesSection: React.FC<CandidatesSectionProps> = ({
   cvs, 
   tests, 
   jobs,
-  setTests 
+  setTests,
+  setUsers,
+  setCvs,
+  currentUser,
+  setCurrentUser
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'with-tests' | 'completed-tests' | 'pending-tests'>('all');
@@ -66,6 +74,29 @@ const CandidatesSection: React.FC<CandidatesSectionProps> = ({
     
     alert(`Score updated for test #${test.id}`);
   };
+  const toggleCandidateAvailability = (candidateId: number, newAvailability: boolean) => {
+    // Update user data
+    setUsers(users.map(user => 
+      user.id === candidateId 
+        ? { ...user, availability: newAvailability }
+        : user
+    ));
+    
+    // Also update CV data to maintain consistency
+    setCvs(cvs.map(cv => 
+      cv.userId === candidateId 
+        ? { ...cv, availability: newAvailability }
+        : cv
+    ));
+    
+    // Update currentUser if this is the same user
+    if (currentUser && setCurrentUser && currentUser.id === candidateId) {
+      setCurrentUser({
+        ...currentUser,
+        availability: newAvailability
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -113,9 +144,19 @@ const CandidatesSection: React.FC<CandidatesSectionProps> = ({
                     </div>
                     <div>
                       <h4 className="text-lg font-semibold text-white">{candidate.name}</h4>
-                      <p className="text-gray-400">{candidate.email}</p>
-                      <div className="mt-2 flex items-center space-x-3">
+                      <p className="text-gray-400">{candidate.email}</p>                      <div className="mt-2 flex items-center space-x-3">
                         <div className="flex items-center space-x-1">
+                          <button 
+                            onClick={() => toggleCandidateAvailability(candidate.id, !candidate.availability)}
+                            className="text-gray-400 hover:text-white transition-colors focus:outline-none"
+                            title={candidate.availability ? "Set as unavailable" : "Set as available"}
+                          >
+                            {candidate.availability ? (
+                              <ToggleRight className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-red-500" />
+                            )}
+                          </button>
                           <div className={`w-3 h-3 rounded-full ${candidate.availability ? 'bg-green-500' : 'bg-red-500'}`}></div>
                           <span className="text-sm text-gray-400">
                             {candidate.availability ? 'Available' : 'Not Available'}

@@ -4,6 +4,9 @@ import { User, Job, CV, Match, Test, Question } from './types';
 
 interface UserDashboardProps {
   user: User;
+  users: User[];
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  setCurrentUser?: React.Dispatch<React.SetStateAction<User | null>>;
   onLogout: () => void;
   jobs: Job[];
   cvs: CV[];
@@ -19,6 +22,9 @@ interface UserDashboardProps {
 
 const UserDashboard: React.FC<UserDashboardProps> = ({
   user,
+  users,
+  setUsers,
+  setCurrentUser,
   onLogout,
   jobs,
   cvs,
@@ -79,16 +85,29 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     } else {
       alert('Failed to change password. Please check your current password.');
     }
-  };
-
-  const handleAvailabilityToggle = () => {
-    setAvailability(!availability);
-    // Update CV availability too if it exists
+  };  const handleAvailabilityToggle = () => {
+    const newAvailability = !availability;
+    setAvailability(newAvailability);
+    
+    // Update CV availability if it exists
     if (userCV) {
       const updatedCVs = cvs.map(cv => 
-        cv.id === userCV.id ? { ...cv, availability: !availability } : cv
+        cv.id === userCV.id ? { ...cv, availability: newAvailability } : cv
       );
       setCvs(updatedCVs);
+    }
+    
+    // Update the users collection
+    setUsers(users.map(u => 
+      u.id === user.id ? { ...u, availability: newAvailability } : u
+    ));
+    
+    // Update the currentUser if setCurrentUser is provided
+    if (setCurrentUser) {
+      setCurrentUser({
+        ...user,
+        availability: newAvailability
+      });
     }
   };
 

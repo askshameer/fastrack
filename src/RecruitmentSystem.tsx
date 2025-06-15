@@ -6,18 +6,17 @@ import UserDashboard from './UserDashboard';
 import { TextMatcher } from './utils/textProcessing';
 
 // Main App Component
-const RecruitmentSystem: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+const RecruitmentSystem: React.FC = () => {  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<'login' | 'adminDashboard' | 'userDashboard'>('login');
+  const [users, setUsers] = useState<User[]>(mockUsers);
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [cvs, setCvs] = useState<CV[]>(mockCVs);
   const [matches, setMatches] = useState<Match[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [showNewJobForm, setShowNewJobForm] = useState<boolean>(false);
-
   const handleLogin = (email: string, password: string): User | undefined => {
-    const user = mockUsers.find(u => u.email === email && u.password === password);
+    const user = users.find(u => u.email === email && u.password === password);
     if (user) {
       setCurrentUser(user);
       setCurrentView(user.role === 'admin' ? 'adminDashboard' : 'userDashboard');
@@ -89,9 +88,8 @@ const RecruitmentSystem: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {currentView === 'login' && <LoginPage onLogin={handleLogin} />}
-      {currentView === 'adminDashboard' && currentUser && (
-        <AdminDashboard
-          user={currentUser}
+      {currentView === 'adminDashboard' && currentUser && (        <AdminDashboard          user={currentUser}
+          users={users}
           onLogout={handleLogout}
           jobs={jobs}
           setJobs={setJobs}
@@ -99,8 +97,9 @@ const RecruitmentSystem: React.FC = () => {
           setCvs={setCvs}
           matches={matches}
           setMatches={setMatches}
-          tests={tests}
-          setTests={setTests}
+          tests={tests}          setTests={setTests}
+          setUsers={setUsers}
+          setCurrentUser={setCurrentUser}
           calculateMatch={calculateMatch}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
@@ -108,10 +107,11 @@ const RecruitmentSystem: React.FC = () => {
           setShowNewJobForm={setShowNewJobForm}
           onPasswordChange={handlePasswordChange}
         />
-      )}
-      {currentView === 'userDashboard' && currentUser && (
-        <UserDashboard
-          user={currentUser}
+      )}      {currentView === 'userDashboard' && currentUser && (
+        <UserDashboard          user={currentUser}
+          users={users}
+          setUsers={setUsers}
+          setCurrentUser={setCurrentUser}
           onLogout={handleLogout}
           jobs={jobs}
           cvs={cvs}

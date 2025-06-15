@@ -25,6 +25,7 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({
   const [filterByJob, setFilterByJob] = useState<number | null>(null);
   const [showJobFilter, setShowJobFilter] = useState(false);
   const [filterByPercentage, setFilterByPercentage] = useState<number>(0);
+  const [selectedJob, setSelectedJob] = useState<number | null>(null);
 
   // Generate matches if none exist
   useEffect(() => {
@@ -91,9 +92,41 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({
     alert(`Test for "${match.job.title}" has been enabled for the candidate.`);
   };
 
+  // Run matching for a specific job
+  const handleRunMatching = () => {
+    if (!selectedJob) return;
+    
+    const job = jobs.find(j => j.id === selectedJob);
+    if (!job) return;
+    
+    // Filter CVs based on availability
+    const eligibleCVs = cvs.filter(cv => cv.availability !== false);
+    
+    // Create new matches
+    const newMatchesForJob = eligibleCVs.map(cv => {
+      const matchPercentage = calculateMatch(job, cv);
+      return {
+        matchId: `${job.id}-${cv.id}`,
+        jobId: job.id,
+        cvId: cv.id,
+        percentage: matchPercentage,
+        job: job,
+        cv: cv,
+        testEnabled: false
+      };
+    }).filter(match => match.percentage > 0);
+    
+    // Remove previous matches for this job
+    const otherMatches = matches.filter(m => m.jobId !== selectedJob);
+    
+    // Add new matches
+    setMatches([...otherMatches, ...newMatchesForJob]);
+    
+    alert(`Matching completed for "${job.title}". Found ${newMatchesForJob.length} potential matches.`);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">      <div className="flex justify-between items-center">
         <h3 className="text-xl font-semibold text-white">Matching</h3>
         <div className="flex items-center space-x-3">
           <div className="flex space-x-1 items-center">
@@ -109,6 +142,30 @@ const MatchingSection: React.FC<MatchingSectionProps> = ({
             <span className="text-white text-sm w-8">{filterByPercentage}%</span>
           </div>
         </div>
+      </div>
+
+      {/* Job Selection and Run Matching */}
+      <div className="flex flex-col md:flex-row gap-3 items-end">
+        <div className="flex-1">
+          <label className="block text-gray-400 mb-2">Select Job to Match</label>
+          <select
+            value={selectedJob || ''}
+            onChange={(e) => setSelectedJob(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">Select a job...</option>
+            {jobs.map(job => (
+              <option key={job.id} value={job.id}>{job.title}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleRunMatching}
+          disabled={!selectedJob}
+          className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Run Matching
+        </button>
       </div>
 
       {/* Search and Filter */}

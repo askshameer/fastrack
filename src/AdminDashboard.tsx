@@ -9,6 +9,7 @@ import AnalyticsSection from './components/AnalyticsSection';
 
 interface AdminDashboardProps {
   user: User;
+  users: User[];
   onLogout: () => void;
   jobs: Job[];
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
@@ -18,6 +19,8 @@ interface AdminDashboardProps {
   setMatches: React.Dispatch<React.SetStateAction<Match[]>>;
   tests: Test[];
   setTests: React.Dispatch<React.SetStateAction<Test[]>>;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  setCurrentUser?: React.Dispatch<React.SetStateAction<User | null>>;
   calculateMatch: (job: Job, cv: CV) => number;
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -28,6 +31,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user,
+  users,
   onLogout,
   jobs,
   setJobs,
@@ -37,6 +41,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   setMatches,
   tests,
   setTests,
+  setUsers,
+  setCurrentUser,
   calculateMatch,
   sidebarOpen,
   setSidebarOpen,
@@ -243,13 +249,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               tests={tests}
               setTests={setTests}
             />
-          )}          {activeSection === 'candidates' && (
-            <CandidatesSection 
-              users={mockUsers}
+          )}          {activeSection === 'candidates' && (            <CandidatesSection 
+              users={users}
               cvs={cvs} 
               tests={tests}
               jobs={jobs}
-              setTests={setTests} 
+              setTests={setTests}
+              setUsers={setUsers}
+              setCvs={setCvs}
+              currentUser={user}
+              setCurrentUser={setCurrentUser}
             />
           )}
 
